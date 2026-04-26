@@ -1,11 +1,14 @@
 class Messages {
   messages = {
     "0": "❌ Opção inválida. Digite \"menu\" para ver as opções novamente.",
+
     "1": `🕒 Nosso horário de atendimento:
 Segunda a sexta: 07h às 17h
 
 Se o caso for urgente, informe a situação e eu encaminharei para análise do advogado.`,
-    "2": "👨‍⚖️ Certo. Vou iniciar uma triagem rápida para entender seu caso e passar ao advogado. Qual é o seu nome?",
+
+    "2": "👨‍⚖️ Certo. Sou Felipe, vou iniciar uma triagem rápida para entender seu caso e encaminhar ao advogado Rodrigo Marinho. Qual é o seu nome?",
+
     "3": `💼 Áreas atendidas:
 - Direito do consumidor
 - Família
@@ -17,12 +20,18 @@ Se o caso for urgente, informe a situação e eu encaminharei para análise do a
 - Imobiliário
 
 Digite 2 para iniciar a triagem com o assistente jurídico.`,
+
     "4": "📍 Atendimento mediante agendamento. Informe sua cidade e o tipo de caso para verificarmos a melhor forma de atendimento.",
+
     "5": "💳 As formas de pagamento são informadas pelo escritório após análise inicial do caso.",
+
     "6": "📩 Para assuntos profissionais, envie sua mensagem e ela será encaminhada ao responsável.",
+
     "7": "✅ Atendimento automático reativado para este número.",
+
     "8": "✅ Atendimento encerrado. Digite \"menu\" se precisar iniciar novamente.",
-    "10": `👋 Olá! Seja bem-vindo ao atendimento automático do escritório.
+
+    "10": `👋 Olá! Eu sou Felipe, atendente do escritório Rodrigo Marinho.
 
 1️⃣ - Ver horário de atendimento
 2️⃣ - Fazer triagem jurídica

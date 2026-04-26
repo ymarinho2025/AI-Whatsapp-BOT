@@ -33,8 +33,7 @@ client.on("message", async (msg) => {
     if (msg.fromMe) return;
 
     const chatId = msg.from;
-    const rawBody = msg.body || "";
-    const body = rawBody.trim();
+    const body = (msg.body || "").trim();
     const bodyLower = body.toLowerCase();
 
     if (!body) return;
@@ -67,15 +66,38 @@ client.on("message", async (msg) => {
 
       const historico = await buscarHistorico(cliente.id, 10);
 
-      const resposta = await perguntar(
+      const respostaBruta = await perguntar(
         body,
         historico,
         cliente.memoria || ""
       );
 
-      await salvarMensagem(cliente.id, "assistant", resposta);
+      const deveEncerrar = respostaBruta.includes("[ENCERRAR_TRIAGEM]");
 
-      return client.sendMessage(chatId, resposta);
+      const respostaLimpa = respostaBruta
+        .replace("[ENCERRAR_TRIAGEM]", "")
+        .trim();
+
+      await salvarMensagem(cliente.id, "assistant", respostaLimpa);
+
+      await client.sendMessage(chatId, respostaLimpa);
+
+      if (deveEncerrar) {
+        userState[chatId] = "menu";
+
+        await sleep(1500);
+
+        await client.sendMessage(
+          chatId,
+          "✅ Estou encerrando seu atendimento por aqui. Seu caso será encaminhado para análise do advogado responsável."
+        );
+
+        await sleep(1500);
+
+        return client.sendMessage(chatId, Message.getMessage(10));
+      }
+
+      return;
     }
   } catch (error) {
     console.error("Erro no atendimento:", error);
