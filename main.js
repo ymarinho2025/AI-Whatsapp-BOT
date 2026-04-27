@@ -174,7 +174,7 @@ client.on("message", async (msg) => {
 
         await client.sendMessage(
           chatId,
-          "✅ Atendimento encerrado. Caso encaminhado ao advogado."
+          "✅ Atendimento encerrado. Caso encaminhado ao advogado.Siga nosso instagram @advmarinho_"
         );
 
         await sleep(1500);
