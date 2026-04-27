@@ -1,8 +1,0 @@
-{
-  "fonte": "https://www2.oabrs.org.br/honorarios/",
-  "origem": "OAB/RS - Tabela de honorários",
-  "coletadoEm": "GERADO_AUTOMATICAMENTE",
-  "total": 0,
-  "observacao": "Execute npm install e npm run gerar para gerar o JSON real diretamente do site oficial.",
-  "itens": []
-}

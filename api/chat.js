@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+const fs = require("fs");
+const path = require("path");
 const fetch = require("node-fetch");
 
 const API_KEY = process.env.GROQ_API_KEY;
@@ -8,17 +10,58 @@ if (!API_KEY) {
   throw new Error("Configure GROQ_API_KEY no .env");
 }
 
-const systemPrompt = `
-Você é Bella, a assistente virtual do escritório do advogado Rodrigo Marinho.
+const caminhoJson = path.join(__dirname, "..", "honorarios-oabrs.json");
 
-Identidade:te
-- Seu nome é Bella.
-- Você trabalha exclusivamente para o advogado Rodrigo Marinho.
-- Você deve se apresentar como Bella, atendente do escritório Rodrigo Marinho.
-- Você é uma assistente virtual
-- Nunca seja sentimental
-- NUNCA FAÇA ANALISE PSICOLOGICA
-- SEMPRE FAÇA ANALISE JURIDICA
+function carregarHonorarios() {
+  try {
+    const raw = fs.readFileSync(caminhoJson, "utf8");
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error("Erro ao ler honorarios-oabrs.json:", error);
+    return null;
+  }
+}
+
+function buscarHonorarios(pergunta) {
+  const tabela = carregarHonorarios();
+
+  if (!tabela || !Array.isArray(tabela.secoes)) {
+    return "Tabela de honorários não carregada.";
+  }
+
+  const termos = pergunta
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/\s+/)
+    .filter(p => p.length >= 4);
+
+  const resultados = [];
+
+  for (const secao of tabela.secoes) {
+    for (const linha of secao.linhas || []) {
+      const linhaNormalizada = linha
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+      const achou = termos.some(termo => linhaNormalizada.includes(termo));
+
+      if (achou && linha.includes("R$")) {
+        resultados.push(`${secao.titulo}\n${linha}`);
+      }
+    }
+  }
+
+  if (resultados.length === 0) {
+    return "Não encontrei um item específico na tabela local. Informe melhor o tipo de serviço jurídico.";
+  }
+
+  return resultados.slice(0, 5).join("\n\n");
+}
+
+const systemPrompt = `
+Você é Felipe, atendente virtual do escritório do advogado Rodrigo Marinho.
 
 Função:
 - Fazer triagem inicial.
@@ -28,52 +71,46 @@ Função:
 - Não dizer que o cliente tem direito líquido e certo.
 - Não dizer que o advogado já analisou o caso.
 - Não dizer que já ajuizou ação.
-- Você tem que descobrir oque houve para passar pro advogado
-- Mencione o valor da tabela a OAB https://www2.oabrs.org.br/honorarios/ caso pergunte
-- SEMPRE SIGA A REGRA DE ATENDIMENTO
+- Fazer perguntas curtas para entender o caso.
 
 Honorários:
-- Você pode informar que os honorários dependem de análise do advogado.
-- Sempre consulte os valores de referência da OAB/RS e informe-o quando requisitado, somente use informações da fonte oficial da OAB do Rio Grande do Sul https://www2.oabrs.org.br/honorarios/
-- Nunca consulte ou mencione valores de sites terceiros.
-- Se não tiver acesso confirmado à tabela oficial, diga: "Os honorários serão informados após análise, observando os parâmetros éticos da OAB/RS."
+- Quando o cliente perguntar sobre honorários, use apenas a tabela local da OAB/RS fornecida no prompt.
+- Informe que são valores referenciais da tabela da OAB/RS.
+- Explique que o valor final depende da análise do advogado Rodrigo Marinho.
+- Nunca invente valores.
+- Nunca diga que consultou site externo em tempo real.
 
 Memória conhecida do cliente:
 {MEMORIA}
 
+Tabela local da OAB/RS relacionada à pergunta:
+{HONORARIOS}
+
 Regras de atendimento:
 - Seja profissional, cordial e objetivo.
-- Nunca entre em questão de sentimentos APENAS ASPECTOS JURIDICOS
-- Não tente ajudar o psicologico de ninguem
-- Faça perguntas curtas.
+- Faça análise jurídica inicial, sem consulta definitiva.
 - Colete, quando possível:
-- Busque sempre na memoria no inicio da conversa
   1. Nome
   2. Cidade/Estado
   3. Tipo de problema
   4. Urgência
   5. Se possui documentos ou comprovantes
-- Encaminhe ao advogado Rodrigo Marinho quando tiver informações suficientes.
 
 Regra de encerramento:
 Quando o cliente já tiver explicado minimamente o caso e aceitar o encaminhamento ao advogado Rodrigo Marinho, finalize com uma mensagem natural e coloque exatamente no final:
 
 [ENCERRAR_TRIAGEM]
 
-Exemplo:
-"Perfeito. Vou encaminhar seu caso para análise do advogado Rodrigo Marinho. Obrigado por confiar em nosso escritório. [ENCERRAR_TRIAGEM]"
-
-Importante:
-- Use [ENCERRAR_TRIAGEM] somente quando a triagem estiver pronta para ser encerrada.
-- Não explique o marcador.
+Não explique o marcador.
 `;
 
 async function perguntar(pergunta, historico = [], memoria = "") {
   try {
-    const promptFinal = systemPrompt.replace(
-      "{MEMORIA}",
-      memoria || "Nenhuma memória salva ainda."
-    );
+    const honorariosEncontrados = buscarHonorarios(pergunta);
+
+    const promptFinal = systemPrompt
+      .replace("{MEMORIA}", memoria || "Nenhuma memória salva ainda.")
+      .replace("{HONORARIOS}", honorariosEncontrados);
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -83,8 +120,8 @@ async function perguntar(pergunta, historico = [], memoria = "") {
       },
       body: JSON.stringify({
         model: process.env.MODEL || "llama-3.1-8b-instant",
-        temperature: 0.3,
-        max_tokens: 300,
+        temperature: 0.2,
+        max_tokens: 400,
         messages: [
           { role: "system", content: promptFinal },
           ...historico,
@@ -100,13 +137,9 @@ async function perguntar(pergunta, historico = [], memoria = "") {
       return "Não consegui consultar o assistente agora. Vou encaminhar sua mensagem para análise do advogado.";
     }
 
-    return (
-      data.choices?.[0]?.message?.content ||
-      "Certo, vou encaminhar ao advogado responsável. [ENCERRAR_TRIAGEM]"
-    );
+    return data.choices?.[0]?.message?.content || "Certo, vou encaminhar ao advogado responsável.";
   } catch (error) {
     console.error("Falha ao consultar IA:", error);
-
     return "Tive uma falha técnica no atendimento automático. Vou encaminhar sua mensagem para análise do escritório. [ENCERRAR_TRIAGEM]";
   }
 }
