@@ -11,7 +11,7 @@ const {
   buscarHistorico
 } = require("./src/memory");
 
-const TEMPO_INATIVIDADE = 120000; // 120 segundos
+const TEMPO_INATIVIDADE = 120000; // 120s
 
 const client = new Client({
   authStrategy: new LocalAuth(),
@@ -29,110 +29,120 @@ client.once("ready", () => {
 });
 
 const userState = {};
-const timersInatividade = {};
+const timers = {};
+const atendimentoHumano = {};
+
+// ================= UTIL =================
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function limparTimer(chatId) {
-  if (timersInatividade[chatId]) {
-    clearTimeout(timersInatividade[chatId]);
-    delete timersInatividade[chatId];
+  if (timers[chatId]) {
+    clearTimeout(timers[chatId]);
+    delete timers[chatId];
   }
 }
 
-function iniciarTimerInatividade(chatId) {
+function iniciarTimer(chatId) {
   limparTimer(chatId);
 
-  timersInatividade[chatId] = setTimeout(async () => {
+  timers[chatId] = setTimeout(async () => {
     try {
       if (userState[chatId] === "triagem_juridica") {
         userState[chatId] = "menu";
 
         await client.sendMessage(
           chatId,
-          "⏳ Atendimento encerrado por inatividade. Como não houve resposta em 120 segundos, estou finalizando esta triagem por aqui."
+          "⏳ Atendimento encerrado por inatividade (120s)."
         );
 
         await sleep(1000);
-
         await client.sendMessage(chatId, Message.getMessage(10));
       }
-    } catch (error) {
-      console.error("Erro ao encerrar por inatividade:", error);
+    } catch (e) {
+      console.error("Erro timer:", e);
     }
   }, TEMPO_INATIVIDADE);
 }
 
-  function chatPermitido(chatId) {
+// ================= SEGURANÇA =================
+
+function chatPermitido(chatId) {
   if (!chatId) return false;
 
   // 🚫 bloqueia status
   if (chatId === "status@broadcast") return false;
 
-  // 🚫 bloqueia grupos
+  // 🚫 bloqueia grupo
   if (chatId.endsWith("@g.us")) return false;
 
-  // ✅ permite apenas conversa privada
+  // ✅ somente privado
   if (chatId.endsWith("@c.us")) return true;
 
   return false;
 }
 
-  client.on("message", async (msg) => {
-    try {
-      if (msg.fromMe) return;
+// ================= MENSAGENS =================
 
-      const chatId = msg.from;
+client.on("message", async (msg) => {
+  try {
+    if (msg.fromMe) return;
 
-      if (!chatPermitido(chatId)) {
-        console.log("Mensagem ignorada de origem não permitida:", chatId);
-        return;
-      }
+    const chatId = msg.from;
 
-      const chat = await msg.getChat();
+    if (!chatPermitido(chatId)) return;
 
-      if (chat.isStatus || chat.isBroadcast) {
-        console.log("Status/Broadcast ignorado:", chatId);
-        return;
-      }
+    const chat = await msg.getChat();
+
+    if (chat.isGroup || chat.isStatus || chat.isBroadcast) return;
+
+    // 🚫 BLOQUEIO POR ATENDIMENTO HUMANO
+    if (atendimentoHumano[chatId]) {
+      console.log("Modo humano ativo:", chatId);
+      return;
+    }
 
     const body = (msg.body || "").trim();
     const bodyLower = body.toLowerCase();
 
     if (!body) return;
 
-    // Sempre que o cliente responder, reinicia o timer
+    // reinicia timer se estiver em atendimento
     if (userState[chatId] === "triagem_juridica") {
-      iniciarTimerInatividade(chatId);
+      iniciarTimer(chatId);
     }
 
+    // MENU
     if (bodyLower === "menu" || !userState[chatId]) {
       limparTimer(chatId);
       userState[chatId] = "menu";
       return client.sendMessage(chatId, Message.getMessage(10));
     }
 
+    // ENCERRAR
     if (bodyLower === "sair" || bodyLower === "encerrar") {
       limparTimer(chatId);
       userState[chatId] = "menu";
       return client.sendMessage(chatId, Message.getMessage(8));
     }
 
+    // MENU AÇÕES
     if (userState[chatId] === "menu") {
       if (body === "2") {
         userState[chatId] = "triagem_juridica";
 
         await client.sendMessage(chatId, Message.getMessage(2));
 
-        iniciarTimerInatividade(chatId);
+        iniciarTimer(chatId);
         return;
       }
 
       return client.sendMessage(chatId, Message.getMessage(body));
     }
 
+    // TRIAGEM
     if (userState[chatId] === "triagem_juridica") {
       await client.sendSeen(chatId);
 
@@ -150,13 +160,11 @@ function iniciarTimerInatividade(chatId) {
 
       const deveEncerrar = respostaBruta.includes("[ENCERRAR_TRIAGEM]");
 
-      const respostaLimpa = respostaBruta
-        .replace("[ENCERRAR_TRIAGEM]", "")
-        .trim();
+      const resposta = respostaBruta.replace("[ENCERRAR_TRIAGEM]", "").trim();
 
-      await salvarMensagem(cliente.id, "assistant", respostaLimpa);
+      await salvarMensagem(cliente.id, "assistant", resposta);
 
-      await client.sendMessage(chatId, respostaLimpa);
+      await client.sendMessage(chatId, resposta);
 
       if (deveEncerrar) {
         limparTimer(chatId);
@@ -166,7 +174,7 @@ function iniciarTimerInatividade(chatId) {
 
         await client.sendMessage(
           chatId,
-          "✅ Estou encerrando seu atendimento por aqui. Seu caso será encaminhado para análise do advogado responsável."
+          "✅ Atendimento encerrado. Caso encaminhado ao advogado."
         );
 
         await sleep(1500);
@@ -174,20 +182,21 @@ function iniciarTimerInatividade(chatId) {
         return client.sendMessage(chatId, Message.getMessage(10));
       }
 
-      iniciarTimerInatividade(chatId);
-      return;
+      iniciarTimer(chatId);
     }
   } catch (error) {
-    console.error("Erro no atendimento:", error);
+    console.error("Erro:", error);
 
     if (msg?.from && chatPermitido(msg.from)) {
       return client.sendMessage(
         msg.from,
-        "Tive uma falha técnica no atendimento automático. Vou encaminhar sua mensagem para análise do escritório."
+        "Erro técnico. Sua mensagem será analisada manualmente."
       );
     }
   }
 });
+
+// ================= MODO HUMANO =================
 
 client.on("message_create", async (msg) => {
   try {
@@ -199,16 +208,30 @@ client.on("message_create", async (msg) => {
 
     const body = (msg.body || "").trim().toLowerCase();
 
-    if (body === "encerrar atendimento") {
-      limparTimer(chatId);
+    // ATIVAR BOT
+    if (body === "encerrando seu atendimento") {
+      atendimentoHumano[chatId] = false;
       userState[chatId] = "menu";
 
-      await client.sendMessage(chatId, Message.getMessage(7));
-      await sleep(1500);
+      await client.sendMessage(chatId, "✅ Atendimento Automatico Ativado.");
       return client.sendMessage(chatId, Message.getMessage(10));
     }
+
+    // DESATIVAR BOT
+    if (body === "sou rodrigo marinho advogado") {
+      atendimentoHumano[chatId] = true;
+      limparTimer(chatId);
+      userState[chatId] = "humano";
+    }
+
+    // QUALQUER MENSAGEM SUA DESATIVA BOT
+    atendimentoHumano[chatId] = true;
+    limparTimer(chatId);
+    userState[chatId] = "humano";
+
+    console.log("Humano assumiu:", chatId);
   } catch (error) {
-    console.error("Erro ao reativar atendimento:", error);
+    console.error("Erro modo humano:", error);
   }
 });
 
