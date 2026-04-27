@@ -176,10 +176,7 @@ client.on("message", async (msg) => {
           chatId,
           "✅ Atendimento encerrado. Caso encaminhado ao advogado.Siga nosso instagram @advmarinho_"
         );
-
-        await sleep(1500);
-
-        return client.sendMessage(chatId, Message.getMessage(10));
+         
       }
 
       iniciarTimer(chatId);
