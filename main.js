@@ -208,28 +208,33 @@ client.on("message_create", async (msg) => {
 
     const body = (msg.body || "").trim().toLowerCase();
 
-    // ATIVAR BOT
-    if (body === "encerrando seu atendimento") {
-      atendimentoHumano[chatId] = false;
-      userState[chatId] = "menu";
-
-      await client.sendMessage(chatId, "✅ Atendimento Automatico Ativado.");
-      return client.sendMessage(chatId, Message.getMessage(10));
-    }
-
-    // DESATIVAR BOT
+    // DESATIVAR BOT SOMENTE QUANDO VOCÊ DIGITAR ESTA FRASE
     if (body === "sou rodrigo marinho advogado") {
       atendimentoHumano[chatId] = true;
       limparTimer(chatId);
       userState[chatId] = "humano";
+
+      console.log("Atendimento humano ativado para:", chatId);
+      return;
     }
 
-    // QUALQUER MENSAGEM SUA DESATIVA BOT
-    atendimentoHumano[chatId] = true;
-    limparTimer(chatId);
-    userState[chatId] = "humano";
+    // REATIVAR BOT SOMENTE QUANDO VOCÊ DIGITAR ESTA FRASE
+    if (body === "encerrando seu atendimento") {
+      atendimentoHumano[chatId] = false;
+      limparTimer(chatId);
+      userState[chatId] = "menu";
 
-    console.log("Humano assumiu:", chatId);
+      await client.sendMessage(chatId, "✅ Atendimento automático reativado.");
+      await client.sendMessage(chatId, Message.getMessage(10));
+
+      console.log("Bot reativado para:", chatId);
+      return;
+    }
+
+    // QUALQUER OUTRA MENSAGEM SUA NÃO MUDA O ESTADO DO BOT
+    console.log("Mensagem manual enviada, mas sem alterar estado do bot:", chatId);
+    return;
+
   } catch (error) {
     console.error("Erro modo humano:", error);
   }
