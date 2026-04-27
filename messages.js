@@ -31,7 +31,7 @@ Digite 2 para iniciar a triagem com o assistente jurídico.`,
 
     "8": "✅ Atendimento encerrado. Digite \"menu\" se precisar iniciar novamente.",
 
-    "10": `👋 Olá! Eu sou Felipe, atendente do escritório Rodrigo Marinho.
+    "10": `👋 Olá! Eu sou a Bella, atendente do escritório Rodrigo Marinho.
 
 1️⃣ - Ver horário de atendimento
 2️⃣ - Fazer triagem jurídica
