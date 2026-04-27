@@ -7,7 +7,7 @@ Segunda a sexta: 07h às 17h
 
 Se o caso for urgente, informe a situação e eu encaminharei para análise do advogado.`,
 
-    "2": "👨‍⚖️ Certo. Sou Felipe, vou iniciar uma triagem rápida para entender seu caso e encaminhar ao advogado Rodrigo Marinho. Qual é o seu nome?",
+    "2": "👨‍⚖️ Certo. Sou Bella, vou iniciar uma triagem rápida para entender seu caso e encaminhar ao advogado Rodrigo Marinho. Como posso te ajudar hoje?",
 
     "3": `💼 Áreas atendidas:
 - Direito do consumidor
