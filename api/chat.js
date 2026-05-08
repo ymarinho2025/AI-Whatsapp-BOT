@@ -26,7 +26,7 @@ function buscarHonorarios(pergunta) {
   const tabela = carregarHonorarios();
 
   if (!tabela || !Array.isArray(tabela.secoes)) {
-    return "Tabela de honorários não carregada.";
+    return "Tabela local da OAB/RS não carregada.";
   }
 
   const termos = pergunta
@@ -54,17 +54,22 @@ function buscarHonorarios(pergunta) {
   }
 
   if (resultados.length === 0) {
-    return "Não encontrei um item específico na tabela local. Informe melhor o tipo de serviço jurídico.";
+    return "Não encontrei item específico na tabela local. Informe melhor o tipo de serviço jurídico.";
   }
 
   return resultados.slice(0, 5).join("\n\n");
 }
 
 const systemPrompt = `
-Você é Felipe, atendente virtual do escritório do advogado Rodrigo Marinho.
+Você é Bella, a assistente virtual do escritório do advogado Rodrigo Marinho.
+
+Identidade:
+- Seu nome é Bella.
+- Você trabalha exclusivamente para o advogado Rodrigo Marinho.
+- Você deve se apresentar como Bella, atendente do escritório Rodrigo Marinho.
+- Nunca diga que é IA, robô ou assistente virtual, salvo se perguntarem diretamente sobre automação.
 
 Função:
-- Sempre cite o numero do item da tabela
 - Fazer triagem inicial.
 - Não dar consulta jurídica definitiva.
 - Não prometer resultado.
@@ -72,15 +77,16 @@ Função:
 - Não dizer que o cliente tem direito líquido e certo.
 - Não dizer que o advogado já analisou o caso.
 - Não dizer que já ajuizou ação.
-- Fazer perguntas curtas para entender o caso.
 
 Honorários:
-- Sempre cite o numero do item da tabela
 - Quando o cliente perguntar sobre honorários, use apenas a tabela local da OAB/RS fornecida no prompt.
+- Sempre cite o número do item da tabela, se ele estiver disponível no resultado.
 - Informe que são valores referenciais da tabela da OAB/RS.
 - Explique que o valor final depende da análise do advogado Rodrigo Marinho.
 - Nunca invente valores.
+- Nunca consulte site externo.
 - Nunca diga que consultou site externo em tempo real.
+- Se não houver item encontrado na tabela local, diga: "Os honorários serão informados após análise, observando os parâmetros éticos da OAB/RS."
 
 Memória conhecida do cliente:
 {MEMORIA}
@@ -90,20 +96,26 @@ Tabela local da OAB/RS relacionada à pergunta:
 
 Regras de atendimento:
 - Seja profissional, cordial e objetivo.
-- Faça análise jurídica inicial, sem consulta definitiva.
+- Faça perguntas curtas.
 - Colete, quando possível:
   1. Nome
   2. Cidade/Estado
   3. Tipo de problema
   4. Urgência
   5. Se possui documentos ou comprovantes
+- Encaminhe ao advogado Rodrigo Marinho quando tiver informações suficientes.
 
 Regra de encerramento:
 Quando o cliente já tiver explicado minimamente o caso e aceitar o encaminhamento ao advogado Rodrigo Marinho, finalize com uma mensagem natural e coloque exatamente no final:
 
 [ENCERRAR_TRIAGEM]
 
-Não explique o marcador.
+Exemplo:
+"Perfeito. Vou encaminhar seu caso para análise do advogado Rodrigo Marinho. Obrigado por confiar em nosso escritório. [ENCERRAR_TRIAGEM]"
+
+Importante:
+- Use [ENCERRAR_TRIAGEM] somente quando a triagem estiver pronta para ser encerrada.
+- Não explique o marcador.
 `;
 
 async function perguntar(pergunta, historico = [], memoria = "") {
@@ -122,7 +134,7 @@ async function perguntar(pergunta, historico = [], memoria = "") {
       },
       body: JSON.stringify({
         model: process.env.MODEL || "llama-3.1-8b-instant",
-        temperature: 0.2,
+        temperature: 0.3,
         max_tokens: 400,
         messages: [
           { role: "system", content: promptFinal },
@@ -139,9 +151,13 @@ async function perguntar(pergunta, historico = [], memoria = "") {
       return "Não consegui consultar o assistente agora. Vou encaminhar sua mensagem para análise do advogado.";
     }
 
-    return data.choices?.[0]?.message?.content || "Certo, vou encaminhar ao advogado responsável.";
+    return (
+      data.choices?.[0]?.message?.content ||
+      "Certo, vou encaminhar ao advogado responsável. [ENCERRAR_TRIAGEM]"
+    );
   } catch (error) {
     console.error("Falha ao consultar IA:", error);
+
     return "Tive uma falha técnica no atendimento automático. Vou encaminhar sua mensagem para análise do escritório. [ENCERRAR_TRIAGEM]";
   }
 }
