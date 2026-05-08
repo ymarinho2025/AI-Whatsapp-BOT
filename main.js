@@ -8,7 +8,7 @@ const { perguntar } = require("./api/chat");
 const {
   buscarOuCriarCliente,
   salvarMensagem,
-  buscarHistorico
+  buscarHistorico,
 } = require("./src/memory");
 
 // ================= CONFIGURAÇÕES =================
@@ -22,9 +22,9 @@ const client = new Client({
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage"
-    ]
-  }
+      "--disable-dev-shm-usage",
+    ],
+  },
 });
 
 // ================= ESTADOS =================
@@ -78,7 +78,7 @@ function iniciarTimer(chatId) {
 
         await client.sendMessage(
           chatId,
-          "⏳ Atendimento encerrado por inatividade."
+          "⏳ Atendimento encerrado por inatividade.",
         );
 
         await sleep(1000);
@@ -130,6 +130,10 @@ client.on("message", async (msg) => {
 
     // Estado: menu
     if (userState[chatId] === "menu") {
+      if (body === "1") {
+        return client.sendMessage(chatId, Message.getMessage(1));
+      }
+
       if (body === "2") {
         userState[chatId] = "triagem_juridica";
 
@@ -139,7 +143,25 @@ client.on("message", async (msg) => {
         return;
       }
 
-      return client.sendMessage(chatId, Message.getMessage(body));
+      if (body === "3") {
+        return client.sendMessage(chatId, Message.getMessage(3));
+      }
+
+      if (body === "4") {
+        return client.sendMessage(chatId, Message.getMessage(4));
+      }
+
+      if (body === "5") {
+        return client.sendMessage(chatId, Message.getMessage(5));
+      }
+
+      if (body === "6") {
+        return client.sendMessage(chatId, Message.getMessage(6));
+      }
+
+      await client.sendMessage(chatId, Message.getMessage(0));
+      await sleep(800);
+      return client.sendMessage(chatId, Message.getMessage(10));
     }
 
     // Estado: triagem jurídica
@@ -157,7 +179,7 @@ client.on("message", async (msg) => {
       const respostaBruta = await perguntar(
         body,
         historico,
-        cliente.memoria || ""
+        cliente.memoria || "",
       );
 
       const deveEncerrar = respostaBruta.includes("[ENCERRAR_TRIAGEM]");
@@ -178,7 +200,7 @@ client.on("message", async (msg) => {
 
         await client.sendMessage(
           chatId,
-          "✅ Estou encerrando seu atendimento por aqui. Seu caso será encaminhado para análise do advogado responsável."
+          "✅ Estou encerrando seu atendimento por aqui. Seu caso será encaminhado para análise do advogado responsável.",
         );
 
         await sleep(1500);
@@ -195,7 +217,7 @@ client.on("message", async (msg) => {
     if (msg?.from && chatPermitido(msg.from)) {
       return client.sendMessage(
         msg.from,
-        "Tive uma falha técnica no atendimento automático. Vou encaminhar sua mensagem para análise do escritório."
+        "Tive uma falha técnica no atendimento automático. Vou encaminhar sua mensagem para análise do escritório.",
       );
     }
   }
