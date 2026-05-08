@@ -44,7 +44,7 @@ Digite a opção desejada:`
   };
 
   getMessage(index = 0) {
-    return this.messages[index.toString()] ?? this.messages["0"];
+    return this.messages[index.toString()] ?? this.messages["10"];
   }
 }
 
