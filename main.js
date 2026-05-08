@@ -11,9 +11,7 @@ const {
   buscarHistorico,
 } = require("./src/memory");
 
-// ================= CONFIGURAÇÕES =================
-
-const TEMPO_INATIVIDADE = 120000; // 120 segundos
+const TEMPO_INATIVIDADE = 120000;
 
 const client = new Client({
   authStrategy: new LocalAuth({
@@ -31,17 +29,17 @@ const client = new Client({
   },
 });
 
-// ================= ESTADOS =================
-
 const userState = {};
 const timers = {};
 const atendimentoHumano = {};
 
-// ================= EVENTOS INICIAIS =================
-
 client.on("qr", (qr) => {
   console.log("Escaneie o QR Code:");
   qrcode.generate(qr, { small: true });
+});
+
+client.once("ready", () => {
+  console.log("Bot is ready!");
 });
 
 client.on("authenticated", () => {
@@ -52,10 +50,6 @@ client.on("auth_failure", (msg) => {
   console.error("Falha na autenticação:", msg);
 });
 
-client.on("ready", () => {
-  console.log("Bot is ready!");
-});
-
 client.on("loading_screen", (percent, message) => {
   console.log("Carregando:", percent, message);
 });
@@ -64,25 +58,17 @@ client.on("disconnected", (reason) => {
   console.log("Bot desconectado:", reason);
 });
 
-// ================= FUNÇÕES AUXILIARES =================
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function chatPermitido(chatId) {
   if (!chatId) return false;
-
   if (chatId === "status@broadcast") return false;
-
   if (chatId.endsWith("@g.us")) return false;
-
   if (chatId.endsWith("@broadcast")) return false;
-
   if (chatId.endsWith("@c.us")) return true;
-
   if (chatId.endsWith("@lid")) return true;
-
   return false;
 }
 
@@ -118,16 +104,8 @@ function iniciarTimer(chatId) {
 async function enviarMenu(chatId) {
   userState[chatId] = "menu";
   limparTimer(chatId);
-  await client.sendMessage(chatId, Message.getMessage(10));
+  return client.sendMessage(chatId, Message.getMessage(10));
 }
-
-async function enviarOpcaoInvalida(chatId) {
-  await client.sendMessage(chatId, Message.getMessage(0));
-  await sleep(800);
-  await client.sendMessage(chatId, Message.getMessage(10));
-}
-
-// ================= MENSAGENS RECEBIDAS =================
 
 client.on("message", async (msg) => {
   try {
@@ -150,10 +128,7 @@ client.on("message", async (msg) => {
 
     const chat = await msg.getChat();
 
-    if (chat.isGroup || chat.isStatus || chat.isBroadcast) {
-      console.log("Grupo/status/broadcast ignorado:", chatId);
-      return;
-    }
+    if (chat.isGroup || chat.isStatus || chat.isBroadcast) return;
 
     if (atendimentoHumano[chatId]) {
       console.log("Atendimento humano ativo:", chatId);
@@ -163,14 +138,7 @@ client.on("message", async (msg) => {
     const body = (msg.body || "").trim();
     const bodyLower = body.toLowerCase();
 
-    if (!body) {
-      console.log("Mensagem vazia ignorada:", chatId);
-      return;
-    }
-
-    if (bodyLower === "menu" || bodyLower === "iniciar" || bodyLower === "oi" || bodyLower === "olá" || bodyLower === "ola") {
-      return enviarMenu(chatId);
-    }
+    if (!body) return;
 
     if (bodyLower === "sair" || bodyLower === "encerrar") {
       limparTimer(chatId);
@@ -178,41 +146,54 @@ client.on("message", async (msg) => {
       return client.sendMessage(chatId, Message.getMessage(8));
     }
 
+    if (bodyLower === "menu") {
+      return enviarMenu(chatId);
+    }
+
     if (!userState[chatId]) {
       return enviarMenu(chatId);
     }
 
-    // ================= ESTADO: MENU =================
-
     if (userState[chatId] === "menu") {
-      switch (body) {
-        case "1":
-          return client.sendMessage(chatId, Message.getMessage(1));
-
-        case "2":
-          userState[chatId] = "triagem_juridica";
-          await client.sendMessage(chatId, Message.getMessage(2));
-          iniciarTimer(chatId);
-          return;
-
-        case "3":
-          return client.sendMessage(chatId, Message.getMessage(3));
-
-        case "4":
-          return client.sendMessage(chatId, Message.getMessage(4));
-
-        case "5":
-          return client.sendMessage(chatId, Message.getMessage(5));
-
-        case "6":
-          return client.sendMessage(chatId, Message.getMessage(6));
-
-        default:
-          return enviarOpcaoInvalida(chatId);
+      if (body === "1") {
+        await client.sendMessage(chatId, Message.getMessage(1));
+        await sleep(800);
+        return client.sendMessage(chatId, Message.getMessage(10));
       }
-    }
 
-    // ================= ESTADO: TRIAGEM JURÍDICA =================
+      if (body === "2") {
+        userState[chatId] = "triagem_juridica";
+        await client.sendMessage(chatId, Message.getMessage(2));
+        iniciarTimer(chatId);
+        return;
+      }
+
+      if (body === "3") {
+        await client.sendMessage(chatId, Message.getMessage(3));
+        await sleep(800);
+        return client.sendMessage(chatId, Message.getMessage(10));
+      }
+
+      if (body === "4") {
+        await client.sendMessage(chatId, Message.getMessage(4));
+        await sleep(800);
+        return client.sendMessage(chatId, Message.getMessage(10));
+      }
+
+      if (body === "5") {
+        await client.sendMessage(chatId, Message.getMessage(5));
+        await sleep(800);
+        return client.sendMessage(chatId, Message.getMessage(10));
+      }
+
+      if (body === "6") {
+        await client.sendMessage(chatId, Message.getMessage(6));
+        await sleep(800);
+        return client.sendMessage(chatId, Message.getMessage(10));
+      }
+
+      return enviarMenu(chatId);
+    }
 
     if (userState[chatId] === "triagem_juridica") {
       iniciarTimer(chatId);
@@ -266,7 +247,6 @@ client.on("message", async (msg) => {
       return;
     }
 
-    userState[chatId] = "menu";
     return enviarMenu(chatId);
   } catch (error) {
     console.error("Erro no atendimento:", error);
@@ -279,8 +259,6 @@ client.on("message", async (msg) => {
     }
   }
 });
-
-// ================= MENSAGENS ENVIADAS PELO ESCRITÓRIO =================
 
 client.on("message_create", async (msg) => {
   try {
@@ -324,7 +302,5 @@ client.on("message_create", async (msg) => {
     console.error("Erro ao controlar atendimento:", error);
   }
 });
-
-// ================= INICIAR BOT =================
 
 client.initialize();
