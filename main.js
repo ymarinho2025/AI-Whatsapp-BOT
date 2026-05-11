@@ -18,15 +18,14 @@ const client = new Client({
     clientId: "bot-rodrigo",
   }),
   puppeteer: {
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-extensions",
-      "--disable-gpu",
-    ],
-  },
+  headless: true,
+  executablePath: "/usr/bin/google-chrome",
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage"
+  ]
+}
 });
 
 const userState = {};

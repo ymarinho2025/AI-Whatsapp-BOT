@@ -84,3 +84,4 @@ LocalAuth/
 
 coverage/
 *.tgz
+*.deb
