@@ -11,24 +11,25 @@ const {
   buscarHistorico,
 } = require("./src/memory");
 
-const TEMPO_INATIVIDADE = 120000;
+const TEMPO_INATIVIDADE = 5 * 60 * 1000;
 
 const client = new Client({
   authStrategy: new LocalAuth({
     clientId: "bot-rodrigo",
   }),
   puppeteer: {
-  headless: true,
-  executablePath: "/usr/bin/google-chrome",
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage"
-  ]
-}
+    headless: true,
+    executablePath: "/usr/bin/google-chrome",
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+    ],
+  },
 });
 
 const userState = {};
+const estadoAnterior = {};
 const timers = {};
 const atendimentoHumano = {};
 
@@ -73,37 +74,157 @@ function chatPermitido(chatId) {
 
 function limparTimer(chatId) {
   if (timers[chatId]) {
-    clearTimeout(timers[chatId]);
+    timers[chatId].forEach(clearTimeout);
     delete timers[chatId];
   }
+}
+
+async function enviarMenu(chatId) {
+  userState[chatId] = "menu";
+  delete estadoAnterior[chatId];
+  limparTimer(chatId);
+
+  return client.sendMessage(chatId, Message.getMessage(10));
+}
+
+async function encerrarAtendimento(
+  chatId,
+  motivo = "✅ Atendimento encerrado."
+) {
+  limparTimer(chatId);
+
+  userState[chatId] = "avaliando_atendimento";
+  delete estadoAnterior[chatId];
+
+  await client.sendMessage(chatId, motivo);
+
+  await sleep(1000);
+
+  return client.sendMessage(
+    chatId,
+    `👋 Avalie o atendimento de 1 a 5
+
+1️⃣ - Muito ruim
+2️⃣ - Ruim
+3️⃣ - Satisfatório
+4️⃣ - Bom
+5️⃣ - Muito Bom`
+  );
 }
 
 function iniciarTimer(chatId) {
   limparTimer(chatId);
 
-  timers[chatId] = setTimeout(async () => {
-    try {
-      if (userState[chatId] === "triagem_juridica") {
-        userState[chatId] = "menu";
-
+  timers[chatId] = [
+    setTimeout(async () => {
+      if (
+        userState[chatId] === "triagem_juridica" ||
+        userState[chatId] === "confirmar_encerramento"
+      ) {
         await client.sendMessage(
           chatId,
-          "⏳ Atendimento encerrado por inatividade."
+          "⏳ Atendimento será encerrado em 4 minutos por inatividade."
         );
-
-        await sleep(1000);
-        await client.sendMessage(chatId, Message.getMessage(10));
       }
-    } catch (error) {
-      console.error("Erro no timer:", error);
-    }
-  }, TEMPO_INATIVIDADE);
+    }, 60 * 1000),
+
+    setTimeout(async () => {
+      if (
+        userState[chatId] === "triagem_juridica" ||
+        userState[chatId] === "confirmar_encerramento"
+      ) {
+        await client.sendMessage(
+          chatId,
+          "⏳ Atendimento será encerrado em 3 minutos por inatividade."
+        );
+      }
+    }, 2 * 60 * 1000),
+
+    setTimeout(async () => {
+      if (
+        userState[chatId] === "triagem_juridica" ||
+        userState[chatId] === "confirmar_encerramento"
+      ) {
+        await client.sendMessage(
+          chatId,
+          "⏳ Atendimento será encerrado em 2 minutos por inatividade."
+        );
+      }
+    }, 3 * 60 * 1000),
+
+    setTimeout(async () => {
+      if (
+        userState[chatId] === "triagem_juridica" ||
+        userState[chatId] === "confirmar_encerramento"
+      ) {
+        await client.sendMessage(
+          chatId,
+          "⏳ Atendimento será encerrado em 1 minuto por inatividade."
+        );
+      }
+    }, 4 * 60 * 1000),
+
+    setTimeout(async () => {
+      try {
+        if (
+          userState[chatId] === "triagem_juridica" ||
+          userState[chatId] === "confirmar_encerramento"
+        ) {
+          await encerrarAtendimento(
+            chatId,
+            "⏳ Atendimento encerrado por inatividade."
+          );
+        }
+      } catch (error) {
+        console.error("Erro no timer:", error);
+      }
+    }, TEMPO_INATIVIDADE),
+  ];
 }
 
-async function enviarMenu(chatId) {
-  userState[chatId] = "menu";
-  limparTimer(chatId);
-  return client.sendMessage(chatId, Message.getMessage(10));
+function respostaPositiva(texto) {
+  return [
+    "sim",
+    "s",
+    "pode",
+    "pode encerrar",
+    "encerra",
+    "encerrar",
+    "ok",
+    "beleza",
+    "perfeito",
+    "tudo certo",
+    "pode sim",
+  ].includes(texto);
+}
+
+function respostaNegativa(texto) {
+  return [
+    "não",
+    "nao",
+    "n",
+    "ainda não",
+    "ainda nao",
+    "não ainda",
+    "nao ainda",
+  ].includes(texto);
+}
+
+function mensagemDeDespedida(texto) {
+  return [
+    "obrigado",
+    "obrigada",
+    "muito obrigado",
+    "muito obrigada",
+    "valeu",
+    "tchau",
+    "até mais",
+    "ate mais",
+    "falou",
+    "era isso",
+    "só isso",
+    "so isso",
+  ].some((item) => texto.includes(item));
 }
 
 client.on("message", async (msg) => {
@@ -140,9 +261,7 @@ client.on("message", async (msg) => {
     if (!body) return;
 
     if (bodyLower === "sair" || bodyLower === "encerrar") {
-      limparTimer(chatId);
-      userState[chatId] = "menu";
-      return client.sendMessage(chatId, Message.getMessage(8));
+      return encerrarAtendimento(chatId);
     }
 
     if (bodyLower === "menu") {
@@ -151,6 +270,62 @@ client.on("message", async (msg) => {
 
     if (!userState[chatId]) {
       return enviarMenu(chatId);
+    }
+
+    if (userState[chatId] === "avaliando_atendimento") {
+      const nota = body.trim();
+
+      if (!["1", "2", "3", "4", "5"].includes(nota)) {
+        return client.sendMessage(
+          chatId,
+          "Por favor, avalie o atendimento de 1 a 5."
+        );
+      }
+
+      console.log(`Avaliação recebida de ${chatId}: ${nota}`);
+
+      delete userState[chatId];
+      delete estadoAnterior[chatId];
+      limparTimer(chatId);
+
+      return client.sendMessage(
+        chatId,
+        "✅ Obrigado pela avaliação! Atendimento finalizado."
+      );
+    }
+
+    if (userState[chatId] === "confirmar_encerramento") {
+      iniciarTimer(chatId);
+
+      if (respostaPositiva(bodyLower)) {
+        return encerrarAtendimento(
+          chatId,
+          "✅ Perfeito. Atendimento encerrado."
+        );
+      }
+
+      if (respostaNegativa(bodyLower)) {
+        userState[chatId] =
+          estadoAnterior[chatId] || "triagem_juridica";
+
+        delete estadoAnterior[chatId];
+
+        await client.sendMessage(
+          chatId,
+          "Tudo bem. Pode mandar sua próxima dúvida."
+        );
+
+        iniciarTimer(chatId);
+        return;
+      }
+
+      await client.sendMessage(
+        chatId,
+        "Você deseja encerrar o atendimento? Responda com SIM ou NÃO."
+      );
+
+      iniciarTimer(chatId);
+      return;
     }
 
     if (userState[chatId] === "menu") {
@@ -162,7 +337,9 @@ client.on("message", async (msg) => {
 
       if (body === "2") {
         userState[chatId] = "triagem_juridica";
+
         await client.sendMessage(chatId, Message.getMessage(2));
+
         iniciarTimer(chatId);
         return;
       }
@@ -175,20 +352,17 @@ client.on("message", async (msg) => {
 
       if (body === "4") {
         await client.sendMessage(chatId, Message.getMessage(4));
-        await sleep(800);
-        return client.sendMessage(chatId, Message.getMessage(10));
+        return;
       }
 
       if (body === "5") {
         await client.sendMessage(chatId, Message.getMessage(5));
-        await sleep(800);
-        return client.sendMessage(chatId, Message.getMessage(10));
+        return;
       }
 
       if (body === "6") {
         await client.sendMessage(chatId, Message.getMessage(6));
-        await sleep(800);
-        return client.sendMessage(chatId, Message.getMessage(10));
+        return;
       }
 
       return enviarMenu(chatId);
@@ -196,6 +370,20 @@ client.on("message", async (msg) => {
 
     if (userState[chatId] === "triagem_juridica") {
       iniciarTimer(chatId);
+
+      if (mensagemDeDespedida(bodyLower)) {
+        estadoAnterior[chatId] = userState[chatId];
+
+        userState[chatId] = "confirmar_encerramento";
+
+        await client.sendMessage(
+          chatId,
+          "Posso encerrar o atendimento ou posso ajudar com algo mais?"
+        );
+
+        iniciarTimer(chatId);
+        return;
+      }
 
       await client.sendSeen(chatId);
 
@@ -216,7 +404,8 @@ client.on("message", async (msg) => {
           "Entendi. Pode me informar seu nome, cidade e um resumo do problema para eu encaminhar ao advogado Rodrigo Marinho?";
       }
 
-      const deveEncerrar = respostaBruta.includes("[ENCERRAR_TRIAGEM]");
+      const deveEncerrar =
+        respostaBruta.includes("[ENCERRAR_TRIAGEM]");
 
       const respostaLimpa = respostaBruta
         .replace("[ENCERRAR_TRIAGEM]", "")
@@ -227,19 +416,19 @@ client.on("message", async (msg) => {
       await client.sendMessage(chatId, respostaLimpa);
 
       if (deveEncerrar) {
-        limparTimer(chatId);
-        userState[chatId] = "menu";
+        estadoAnterior[chatId] = userState[chatId];
 
-        await sleep(1500);
+        userState[chatId] = "confirmar_encerramento";
+
+        await sleep(1000);
 
         await client.sendMessage(
           chatId,
-          "✅ Estou encerrando seu atendimento por aqui. Seu caso será encaminhado para análise do advogado responsável."
+          "Posso encerrar o atendimento ou posso ajudar com algo mais?"
         );
 
-        await sleep(1500);
-
-        return client.sendMessage(chatId, Message.getMessage(10));
+        iniciarTimer(chatId);
+        return;
       }
 
       iniciarTimer(chatId);
@@ -271,7 +460,9 @@ client.on("message_create", async (msg) => {
 
     if (body === "atendimento automatico finalizado") {
       atendimentoHumano[chatId] = true;
+
       limparTimer(chatId);
+
       userState[chatId] = "humano";
 
       console.log("Atendimento humano ativado para:", chatId);
@@ -280,7 +471,9 @@ client.on("message_create", async (msg) => {
 
     if (body === "atendimento automatico iniciado") {
       atendimentoHumano[chatId] = false;
+
       limparTimer(chatId);
+
       userState[chatId] = "menu";
 
       await client.sendMessage(chatId, Message.getMessage(10));
@@ -290,12 +483,7 @@ client.on("message_create", async (msg) => {
     }
 
     if (body === "encerrar atendimento") {
-      limparTimer(chatId);
-      userState[chatId] = "menu";
-
-      await client.sendMessage(chatId, Message.getMessage(7));
-      await sleep(1500);
-      return client.sendMessage(chatId, Message.getMessage(10));
+      return encerrarAtendimento(chatId);
     }
   } catch (error) {
     console.error("Erro ao controlar atendimento:", error);
